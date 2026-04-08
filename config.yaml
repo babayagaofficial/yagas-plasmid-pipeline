@@ -1,0 +1,9 @@
+input_list: "some_plasmids.txt" #list of plasmid fasta files
+
+output_dir: "out" #output directory
+
+chr_to_plasmid: "chr_to_plasmid.tsv" #tsv which relates plasmid IDs to chromosomal IDs
+
+dcj-indel: 4
+
+containment: 0.5
