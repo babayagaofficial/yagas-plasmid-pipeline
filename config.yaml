@@ -7,3 +7,5 @@ chr_to_plasmid: "chr_to_plasmid.tsv" #tsv which relates plasmid IDs to chromosom
 dcj-indel: 4
 
 containment: 0.5
+
+big_subcomm_size: 10

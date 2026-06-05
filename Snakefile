@@ -64,7 +64,7 @@ rule cat_fastas:
                     record = SeqIO.read(path, "fasta")
                     SeqIO.write(multi, record)
 
-rule pling:
+checkpoint pling:
     input:
         fastas = get_input_list()
     output:
@@ -117,18 +117,25 @@ rule cluster_lists:
                     for name in clusters_df[clusters_df["type"]==cluster]["plasmid"].values:
                         f.write(fastafiles[name] + "\n")
 
-rule ggcaller:
+rule ggcallaroo:
     input:
         fasta_list = lambda wildcards: config["output_dir"] + "/cluster_lists/" + wildcards.cluster + ".txt"
     output:
-        ann_dir = directory(config["output_dir"] + "/ggcaller/{cluster}")
+        ann_dir = directory(config["output_dir"] + "/ggcallaroo/{cluster}")
     conda:
-        "ggc_env"
+        "ggcallaroo"
     resources:
-        mem_mb=lambda wildcards, attempt: 40000*attempt
+        pass
     threads: 8
+    params:
+        gcallaroo_path = config["ggcallaroo"],
+        bakta_db = config["bakta_db"],
+        ggcaller_cli_args = "",
+        panaroo_cli_args = ""
     shell:
-        "ggcaller --refs {input.fasta_list} --out {output.ann_dir} --threads {threads}"
+        """
+        snakemake --cores {threads} --use-conda --snakefile {params.ggcallaroo_path}/Snakefile --directory {params.ggcallaroo_path} --config refs={input.fasta_list} output_dir={output.ann_dir} bakta_db={params.bakta_db}
+        """
 
 rule pangraph:
     input:
@@ -149,7 +156,7 @@ rule pangraph:
 
 rule rel_core_sizes:
     input:
-        ggcaller_dir = config["output_dir"] + "/ggcaller/{cluster}"
+        ggcaller_dir = config["output_dir"] + "/ggcaller/{cluster}" #this changes with ggcallaroo
         list_dir = config["output_dir"] + "/cluster_lists"
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
@@ -161,11 +168,34 @@ rule rel_core_sizes:
 rule sc_in_chr:
     input:
         typing = config["output_dir"] + "pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
-        chr_to_plasmid = config["chr_to_plasmid"] + "/host_presence/presence_per_host.tsv"
+        chr_to_plasmid = config["chr_to_plasmid"]
     output:
-        plasmid_presence_absence = config["output_dir"]
+        plasmid_presence_absence = config["output_dir"] + "/host_presence/presence_per_host.tsv"
+    params:
+        big = config["big_subcomm_sizes"]
     run:
-        pass
+        import pandas as pd
+        typing = pd.read_csv(input.typing, sep="\t")
+        plasmid_presence = pd.read_csv(input.chr_to_plasmid, sep="\t")
+        subcomms = list(set(typing["type"].to_list()))
+        big_subcomms = [subcomm for subcomm in subcomms if len(typing[typing["type"]==subcomm])>params.big]
+        subcomm_presence = {subcomm:[] for subcomm in big_subcomms}
+        names=[]
+        for host in plasmids_presence["chr"].to_list():
+            names.append(host)
+            plasmids = plasmid_presence[plasmid_presence["chr"]==host]["plasmid"].to_list()
+
+            for subcomm in big_subcomms:
+                abs_presence = len(typing[typing["plasmid"].isin(plasmids) & (typing["type"]==subcomm)]["plasmid"].to_list())
+                if abs_presence == 0:
+                    subcomm_presence[subcomm].append(0)
+                else:
+                    subcomm_presence[subcomm].append(1)
+
+        presence_df = pd.DataFrame(data=presence_absence, index=names)
+        presence_df.sort_index(inplace=True)
+        presence_df.sort_index(axis=1, inplace=True)
+        presence_df.to_csv(output.plasmid_presence_absence, sep="\t")
 
 rule phylofactor:
     input:
