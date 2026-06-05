@@ -141,17 +141,14 @@ rule pangraph:
     input:
         fastas = lambda wildcards: get_list(wildcards.cluster)
     output:
-        ann_dir = directory(f"{out}/{{cluster}}")
-    conda:
-        "pangraph"
+        ann_dir = directory(config["output_dir"] + "/pangraph/{cluster}")
     resources:
         mem_mb=lambda wildcards, attempt: 40000*attempt
     threads: 8
     shell:
         """
-        export JULIA_NUM_THREADS={threads}
-        julia --project=. src/PanGraph.jl build --circular -k minimap2 -s 20 -b 5 {input.fastas} > {output}/pangraph.json
-        julia --project=. src/PanGraph.jl export --no-duplications --output-directory {output} pangraph.json
+        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 {params.fastas} > {output.json}
+        pangraph export gfa --output {output.gfa} --minimum-length 200 {output.json}
         """
 
 rule rel_core_sizes:
