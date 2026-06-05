@@ -251,7 +251,25 @@ rule parsnp:
 
 
 rule dcj_distr:
-    pass
+    input:
+        dcj_dists = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/all_plasmids_distances.tsv"
+    output:
+        plot = "dcj_distr/hist_plot.png"
+        stats = "dcj_distr/stats.txt"
+    run:
+        import pandas as pd
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+
+        dists = pd.read_csv(input.dcj_dists, sep="\t")
+        fig, ax = plt.subplots()
+        sns.histplot(data=dists,x="distance", ax=ax, discrete=True)
+        plt.savefig(output.plot)
+
+        with open(output.stats) as f:
+            f.write("mode:"+str(dists["distance"].mode())+"\n")
+            f.write("median:"+str(dists["distance"].median())+"\n")
+            f.write("mean:"+str(dists["distance"].mean())+"\n")
 
 rule cluster_specs:
     input:
