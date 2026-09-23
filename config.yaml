@@ -4,6 +4,8 @@ output_dir: "out" #output directory
 
 chr_to_plasmid: "chr_to_plasmid.tsv" #tsv which relates plasmid IDs to chromosomal IDs
 
+host_tree: "host_tree.nw" #chromosomal tree for determining relevant host clades, in Newick format
+
 dcj-indel: 4
 
 containment: 0.5

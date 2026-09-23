@@ -210,7 +210,21 @@ rule phylofactor:
         "R < scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {output.out_dir} --no-save"
 
 rule post_phylofactor:
-    pass
+    input:
+        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv",
+        chr_to_plasmid = config["chr_to_plasmid"],
+        tree = config["host_tree"],
+        input_list = get_input_list(),
+        phylofactor_dir = config["output"] + "phylofactor/{cluster}"
+    output:
+        out_dir = directory(config["output_dir"] + "/post_phylofactor/{cluster}")
+    params:
+        cluster = lambda wildcards: wildcards.cluster,
+        min_rate = 0.4,
+        avg_rate = 0.5,
+        min_plasmids = 4
+    script:
+        "scripts/filter_phylofactor.py"
 
 rule dcj_trees:
     input:
