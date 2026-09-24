@@ -100,7 +100,7 @@ rule cluster_lists:
     output:
         list_dir = config["output_dir"] + "/cluster_lists"
     params:
-        min_cluster_size = config["min_cluster_size"]
+        min_cluster_size = config["big_subcomm_size"]
     run:
         import pandas as pd
         import os
@@ -157,19 +157,19 @@ rule rel_core_sizes:
         list_dir = config["output_dir"] + "/cluster_lists"
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
-        plot = config["output_dir"] + "rel_core/rel_core_plot.png"
-        tsv = config["output_dir"] + "rel_core/rel_core.tsv"
+        plot = config["output_dir"] + "/rel_core/rel_core_plot.png"
+        tsv = config["output_dir"] + "/rel_core/rel_core.tsv"
     script:
         "scripts/get_core_sizes.py"
 
 rule sc_in_chr:
     input:
-        typing = config["output_dir"] + "pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
+        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
         chr_to_plasmid = config["chr_to_plasmid"]
     output:
         plasmid_presence_absence = config["output_dir"] + "/host_presence/presence_per_host.tsv"
     params:
-        big = config["big_subcomm_sizes"]
+        big = config["big_subcomm_size"]
     run:
         import pandas as pd
         typing = pd.read_csv(input.typing, sep="\t")
@@ -199,8 +199,8 @@ rule phylofactor:
         tree = config["host_tree"],
         traits = config["output_dir"] + "/host_presence/presence_per_host.tsv"
     output:
-        tree_vis = config["output"] + "phylofactor/{cluster}/tree.pdf"
-        out_dir = config["output"] + "phylofactor/{cluster}"
+        tree_vis = config["output"] + "/phylofactor/{cluster}/tree.pdf"
+        out_dir = config["output"] + "/phylofactor/{cluster}"
     params:
         cluster = lambda wildcards: wildcards.cluster
     conda: "phylofactor"
@@ -284,7 +284,7 @@ rule dcj_distr:
 
 rule cluster_specs:
     input:
-        typing = config["output_dir"] + "pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
+        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv",
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
         tsv = config["output_dir"] + "/cluster_specs.tsv"
@@ -295,4 +295,16 @@ rule rep_types:
     pass
 
 rule boundary:
-    pass
+    input:
+        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv",
+        hubs = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/hub_plasmids.csv",
+        dcjs = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/all_plasmids_distnaces.tsv"
+    params:
+        big_subcomm_size = config["big_subcomm_size"]
+    output:
+        median_hist = config["output_dir"] + "/boundary/dcj_median.png", mean_hist = config["output_dir"] + "/boundary/dcj_mean.png",   # histograms of boundary values
+        median_box = config["output_dir"] + "/boundary/internal_vs_boundary_median.png",  mean_box = config["output_dir"] + "/boundary/internal_vs_boundary_mean.png",    # swarm + box plots, internal vs boundary
+        tsv = config["output_dir"] + "/boundary/dcj_averages.tsv
+    script:
+        "scripts/boundary.py"
+
