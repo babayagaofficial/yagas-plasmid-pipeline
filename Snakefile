@@ -115,7 +115,7 @@ if INPUT_LIST:
                     for line in f:
                         path = line.strip()
                         record = SeqIO.read(path, "fasta")
-                        SeqIO.write(multi, record)
+                        SeqIO.write(record, multi, "fasta")
 
 rule pling:
     input:
