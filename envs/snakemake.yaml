@@ -1,0 +1,16 @@
+#environment to run the pipeline from: mamba env create -f envs/snakemake.yaml
+#rules with run: blocks (separate_fastas, cat_fastas, cluster_lists, sc_in_chr, dcj_distr) cannot use a conda directive,
+#so they run in this environment, both locally and on slurm
+name: yagas-plasmid-pipeline
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python =3.12
+  - snakemake >=9,<10
+  - snakemake-executor-plugin-slurm
+  #used by the run: blocks
+  - pandas
+  - biopython
+  - matplotlib
+  - seaborn >=0.13
