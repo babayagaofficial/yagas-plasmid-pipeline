@@ -14,6 +14,8 @@ Starting from a set of plasmid assemblies, the pipeline:
 
 ## Installation
 
+You will need conda/mamba to install and run the pipeline.
+
 ### 1. Clone the repository
 
 ```bash
@@ -24,7 +26,7 @@ cd yagas-plasmid-pipeline
 ### 2. Create the Snakemake environment
 
 ```bash
-mamba env create -f envs/snakemake.yaml
+conda create -f envs/snakemake.yaml
 conda activate yagas-plasmid-pipeline
 ```
 
