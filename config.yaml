@@ -13,6 +13,10 @@ dcj-indel: 4
 
 containment: 0.5
 
+sourmash: False
+
+batch_size: 1000
+
 big_subcomm_size: 10
 
 ggcaller_cli_args: "--save"
