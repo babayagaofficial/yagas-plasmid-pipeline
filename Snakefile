@@ -61,12 +61,6 @@ def get_list(cluster):
                 files.append(line.strip())
     return files
 
-def get_sourmash():
-    if config["sourmash"]:
-        return "--sourmash"
-    else:
-        ""
-
 #lightweight rules which run on the submitting node instead of being sent to slurm
 localrules: all, cluster_lists, sc_in_chr, dcj_distr, cluster_specs
 
@@ -136,8 +130,7 @@ rule pling:
     params:
         dcj = int(config["dcj-indel"]),
         containment = float(config["containment"]),
-        sourmash = get_sourmash(),
-        batch_size = config["batch_size"],
+        pling_other_cli = config["pling_other_cli"],
         pling_out = PLING_DIR
     conda:
         "envs/pling.yaml"
@@ -146,7 +139,7 @@ rule pling:
     log:
         LOG_DIR + "/pling.log"
     shell:
-        "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment} {params.sourmash} {params.batch_size}> {log} 2>&1"
+        "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment} {params.pling_other_cli} > {log} 2>&1"
 
 rule mobtyper:
     input:

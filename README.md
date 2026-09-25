@@ -52,6 +52,7 @@ Set the following in `config.yaml`:
 | `chr_to_plasmid` | Tab-separated file with columns `chr` and `plasmid`, relating each plasmid ID to the ID of its host chromosome. |
 | `host_tree` | Newick tree of the host chromosomes; tip labels must match the `chr` column of `chr_to_plasmid`. |
 | `dcj-indel`, `containment` | pling's DCJ-Indel and containment distance thresholds. |
+| `pling_other_cli` | Extra command-line arguments passed to `pling cluster align`, e.g. `"--batch_size 1000 --sourmash"`; see `pling cluster align --help`. Leave empty (`""`) to use pling's defaults. Don't set `--cores`, `--dcj` or `--containment_distance` here, since the pipeline already passes them. |
 | `big_subcomm_size` | Subcommunities with more plasmids than this are analysed individually. |
 | `ggcaller_cli_args`, `panaroo_cli_args` | Extra command-line arguments passed to ggCaller and Panaroo. |
 | `bakta_db` | Path to the Bakta database. |
