@@ -12,6 +12,11 @@ LOG_DIR = config["output_dir"] + "/logs"
 
 PLING_DIR = config["output_dir"] + "/pling_d" + str(config["dcj-indel"]) + "_c" + str(config["containment"]).replace(".", "")
 
+def get_resources(rule):
+    #rule-specific values override the defaults; memory and time scale with the retry attempt
+    res = {**config["resources"]["default"], **config["resources"].get(rule, {})}
+    return {key: (lambda wildcards, attempt, value=value: value*attempt) for key, value in res.items()}
+
 def get_multifasta():
     if config["input_list"]:
         return config["output_dir"] + "/all_plasmids.fna"
@@ -41,6 +46,9 @@ def get_list(cluster):
     return files
 
 
+#lightweight rules which run on the submitting node instead of being sent to slurm
+localrules: all, cluster_lists, sc_in_chr, dcj_distr, cluster_specs
+
 rule all:
     input:
         ggcallaroo = lambda wildcards: [config["output_dir"] + f"/ggcallaroo/{cluster}" for cluster in get_clusters()],
@@ -63,6 +71,7 @@ rule separate_fastas:
     output:
         fasta_dir = directory(config["output_dir"] + "/fastas"),
         fasta_list = config["output_dir"] + "/plasmid_list.txt"
+    resources: **get_resources("separate_fastas")
     run:
         from Bio import SeqIO
         from Bio.SeqRecord import SeqRecord
@@ -80,6 +89,7 @@ rule cat_fastas:
         fastas = config["input_list"]
     output:
         multifasta = config["output_dir"] + "/all_plasmids.fna"
+    resources: **get_resources("cat_fastas")
     run:
         from Bio import SeqIO
 
@@ -104,8 +114,7 @@ rule pling:
         pling_out = PLING_DIR
     conda:
         "pling"
-    resources:
-        pass
+    resources: **get_resources("pling")
     log:
         LOG_DIR + "/pling.log"
     threads: config["pling_threads"]
@@ -119,8 +128,7 @@ rule mobtyper:
         mob = config["output_dir"] + "/mobtyper_results.txt"
     conda:
         "mobsuite"
-    resources:
-        pass
+    resources: **get_resources("mobtyper")
     log:
         LOG_DIR + "/mobtyper.log"
     shell:
@@ -158,8 +166,7 @@ rule ggcallaroo:
         ann_dir = directory(config["output_dir"] + "/ggcallaroo/{cluster}")
     conda:
         "ggcallaroo"
-    resources:
-        pass
+    resources: **get_resources("ggcallaroo")
     threads: 8
     params:
         ggcallaroo_path = config["ggcallaroo"],
@@ -178,8 +185,7 @@ rule pangraph:
         fastas = lambda wildcards: get_list(wildcards.cluster)
     output:
         ann_dir = directory(config["output_dir"] + "/pangraph/{cluster}")
-    resources:
-        mem_mb=lambda wildcards, attempt: 40000*attempt
+    resources: **get_resources("pangraph")
     threads: 8
     log:
         LOG_DIR + "/pangraph/{cluster}.log"
@@ -202,6 +208,7 @@ rule rel_core_sizes:
         ggcaller_dir = config["output_dir"] + "/ggcallaroo"
     log:
         LOG_DIR + "/rel_core_sizes.log"
+    resources: **get_resources("rel_core_sizes")
     script:
         "scripts/get_core_sizes.py"
 
@@ -240,8 +247,7 @@ rule phylofactor:
         cluster = lambda wildcards: wildcards.cluster,
         out_dir = config["output_dir"] + "/phylofactor/{cluster}"
     conda: "phylofactor"
-    resources:
-        mem_mb=lambda wildcards, attempt: 20000*attempt
+    resources: **get_resources("phylofactor")
     log:
         LOG_DIR + "/phylofactor/{cluster}.log"
     shell:
@@ -264,6 +270,7 @@ rule post_phylofactor:
         min_plasmids = 4
     log:
         LOG_DIR + "/post_phylofactor/{cluster}.log"
+    resources: **get_resources("post_phylofactor")
     script:
         "scripts/filter_phylofactor.py"
 
@@ -278,8 +285,7 @@ rule dcj_trees:
         pling_out = PLING_DIR
     conda:
         "pling"
-    resources:
-        pass
+    resources: **get_resources("dcj_trees")
     log:
         LOG_DIR + "/dcj_trees.log"
     shell:
@@ -292,8 +298,7 @@ rule parsnp:
         parsnp_dir = directory(config["output_dir"] + "/parsnp/{cluster}")
     params:
         cluster = lambda wildcards: wildcards.cluster
-    resources:
-        mem_mb=lambda wildcards, attempt: 40000*attempt
+    resources: **get_resources("parsnp")
     threads: config["parsnp_threads"]
     shadow: "shallow"
     log:
@@ -352,6 +357,7 @@ rule boundary:
         tsv = config["output_dir"] + "/boundary/dcj_averages.tsv"
     log:
         LOG_DIR + "/boundary.log"
+    resources: **get_resources("boundary")
     script:
         "scripts/boundary.py"
 

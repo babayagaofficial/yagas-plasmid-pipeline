@@ -15,3 +15,15 @@ big_subcomm_size: 10
 ggcallaroo: "/path/to/ggcallaroo"
 
 bakta_db: "/path/to/bakta_db"
+
+#slurm resources per rule; runtime is in minutes and mem_mb in MB
+#both are multiplied by the attempt number when a job is retried
+#rules not listed here use the default values
+resources:
+  default:          {mem_mb: 4000,  runtime: 60}
+  pling:            {mem_mb: 32000, runtime: 720}
+  mobtyper:         {mem_mb: 8000,  runtime: 240}
+  ggcallaroo:       {mem_mb: 32000, runtime: 720}
+  pangraph:         {mem_mb: 40000, runtime: 240}
+  parsnp:           {mem_mb: 40000, runtime: 240}
+  phylofactor:      {mem_mb: 20000, runtime: 120}
