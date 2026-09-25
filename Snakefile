@@ -1,7 +1,14 @@
 import os
 import glob
+import shutil
+import subprocess
 
 configfile: "config.yaml"
+
+wildcard_constraints:
+    cluster="[^/]+"
+
+PLING_DIR = config["output_dir"] + "/pling_d" + str(config["dcj-indel"]) + "_c" + str(config["containment"]).replace(".", "")
 
 def get_multifasta():
     if config["input_list"]:
@@ -15,33 +22,47 @@ def get_input_list():
     else:
         return config["output_dir"] + "/plasmid_list.txt"
 
+def get_cluster_list(cluster):
+    #calling the checkpoint makes snakemake wait for cluster_lists before evaluating rules which depend on it
+    return checkpoints.cluster_lists.get().output.list_dir + f"/{cluster}.txt"
+
 def get_clusters():
-    clusterpath = "blub"
-    return [os.path.basename(el).replace('.txt','') for el in glob.glob(f"{cluster_path}/*.txt")]
+    list_dir = checkpoints.cluster_lists.get().output.list_dir
+    return [os.path.basename(el).replace('.txt','') for el in glob.glob(f"{list_dir}/*.txt")]
 
 def get_list(cluster):
     files = []
-    cluster_path = "blub"
-    with open(f"{cluster_path}/{cluster}.txt") as f:
+    with open(get_cluster_list(cluster)) as f:
         for line in f:
-            files.append(line.strip())
+            if line.strip():
+                files.append(line.strip())
     return files
 
 
 rule all:
     input:
-        ggcaller = [config["output_dir"] + f"/ggcaller/{cluster}" for cluster in get_clusters()]
+        ggcallaroo = lambda wildcards: [config["output_dir"] + f"/ggcallaroo/{cluster}" for cluster in get_clusters()],
+        pangraph = lambda wildcards: [config["output_dir"] + f"/pangraph/{cluster}" for cluster in get_clusters()],
+        median_hist = config["output_dir"] + "/boundary/dcj_median.png", mean_hist = config["output_dir"] + "/boundary/dcj_mean.png",   # histograms of boundary values
+        median_box = config["output_dir"] + "/boundary/internal_vs_boundary_median.png",  mean_box = config["output_dir"] + "/boundary/internal_vs_boundary_mean.png",    # swarm + box plots, internal vs boundary
+        dcj_avg_tsv = config["output_dir"] + "/boundary/dcj_averages.tsv",
+        cluster_specs_tsv = config["output_dir"] + "/cluster_specs.tsv",
+        plot = config["output_dir"] + "/dcj_distr/hist_plot.png",
+        stats = config["output_dir"] + "/dcj_distr/stats.txt",
+        parsnp_dir = lambda wildcards: [config["output_dir"] + f"/parsnp/{cluster}" for cluster in get_clusters()],
+        dcj_trees = PLING_DIR + "/submatrices"
 
 rule separate_fastas:
     input:
         multi = config["multifasta"]
     output:
-        fasta_dir = directory(config["output_dir"] + "fastas")
+        fasta_dir = directory(config["output_dir"] + "/fastas"),
         fasta_list = config["output_dir"] + "/plasmid_list.txt"
     run:
         from Bio import SeqIO
         from Bio.SeqRecord import SeqRecord
 
+        os.makedirs(output.fasta_dir, exist_ok=True)
         with open(output.fasta_list, "w") as fasta_list:
             for record in SeqIO.parse(input.multi, "fasta"):
                 sep_record = SeqRecord(record.seq, record.id, "")
@@ -64,22 +85,25 @@ rule cat_fastas:
                     record = SeqIO.read(path, "fasta")
                     SeqIO.write(multi, record)
 
-checkpoint pling:
+rule pling:
     input:
         fastas = get_input_list()
     output:
-        pling_out = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '')
-        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
+        hubs = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/hub_plasmids.csv",
+        communities_pickle = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/communities.pkl",
+        dcjs = PLING_DIR + "/all_plasmids_distances.tsv"
     params:
-        dcj = int(config["dcj-indel"])
-        containment = float(config["containment"])
+        dcj = int(config["dcj-indel"]),
+        containment = float(config["containment"]),
+        pling_out = PLING_DIR
     conda:
         "pling"
     resources:
         pass
     threads: config["pling_threads"]
     shell:
-        "pling cluster align {input.fastas} {output.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment}"
+        "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment}"
 
 rule mobtyper:
     input:
@@ -93,12 +117,12 @@ rule mobtyper:
     shell:
         "mob_typer --multi --infile {input.fastas} --out_file {output.mob}"
 
-rule cluster_lists:
+checkpoint cluster_lists:
     input:
-        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
-        input_list = get_input_list
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
+        input_list = get_input_list()
     output:
-        list_dir = config["output_dir"] + "/cluster_lists"
+        list_dir = directory(config["output_dir"] + "/cluster_lists")
     params:
         min_cluster_size = config["big_subcomm_size"]
     run:
@@ -111,6 +135,7 @@ rule cluster_lists:
         fastafiles_list = [el[0] for el in pd.read_csv(input.input_list, header=None).values]
         fastafiles = {os.path.splitext(os.path.basename(el))[0]:el for el in fastafiles_list}
 
+        os.makedirs(output.list_dir, exist_ok=True)
         for cluster in clusters:
             if len(clusters_df[clusters_df["type"]==cluster])>params.min_cluster_size:
                 with open(f"{output.list_dir}/{cluster}.txt", "w") as f:
@@ -119,7 +144,7 @@ rule cluster_lists:
 
 rule ggcallaroo:
     input:
-        fasta_list = lambda wildcards: config["output_dir"] + "/cluster_lists/" + wildcards.cluster + ".txt"
+        fasta_list = lambda wildcards: get_cluster_list(wildcards.cluster)
     output:
         ann_dir = directory(config["output_dir"] + "/ggcallaroo/{cluster}")
     conda:
@@ -128,7 +153,7 @@ rule ggcallaroo:
         pass
     threads: 8
     params:
-        gcallaroo_path = config["ggcallaroo"],
+        ggcallaroo_path = config["ggcallaroo"],
         bakta_db = config["bakta_db"],
         ggcaller_cli_args = "",
         panaroo_cli_args = ""
@@ -147,24 +172,27 @@ rule pangraph:
     threads: 8
     shell:
         """
-        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 {params.fastas} > {output.json}
-        pangraph export gfa --output {output.gfa} --minimum-length 200 {output.json}
+        mkdir -p {output.ann_dir}
+        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 {input.fastas} > {output.ann_dir}/pangraph.json
+        pangraph export gfa --output {output.ann_dir}/pangraph.gfa --minimum-length 200 {output.ann_dir}/pangraph.json
         """
 
 rule rel_core_sizes:
     input:
-        ggcaller_dir = config["output_dir"] + "/ggcaller/{cluster}" #this changes with ggcallaroo
-        list_dir = config["output_dir"] + "/cluster_lists"
+        ggcallaroo_dirs = lambda wildcards: [config["output_dir"] + f"/ggcallaroo/{cluster}" for cluster in get_clusters()],
+        list_dir = config["output_dir"] + "/cluster_lists",
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
-        plot = config["output_dir"] + "/rel_core/rel_core_plot.png"
+        plot = config["output_dir"] + "/rel_core/rel_core_plot.png",
         tsv = config["output_dir"] + "/rel_core/rel_core.tsv"
+    params:
+        ggcaller_dir = config["output_dir"] + "/ggcallaroo"
     script:
         "scripts/get_core_sizes.py"
 
 rule sc_in_chr:
     input:
-        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv"
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
         chr_to_plasmid = config["chr_to_plasmid"]
     output:
         plasmid_presence_absence = config["output_dir"] + "/host_presence/presence_per_host.tsv"
@@ -174,22 +202,14 @@ rule sc_in_chr:
         import pandas as pd
         typing = pd.read_csv(input.typing, sep="\t")
         plasmid_presence = pd.read_csv(input.chr_to_plasmid, sep="\t")
-        subcomms = list(set(typing["type"].to_list()))
-        big_subcomms = [subcomm for subcomm in subcomms if len(typing[typing["type"]==subcomm])>params.big]
-        subcomm_presence = {subcomm:[] for subcomm in big_subcomms}
-        names=[]
-        for host in plasmids_presence["chr"].to_list():
-            names.append(host)
-            plasmids = plasmid_presence[plasmid_presence["chr"]==host]["plasmid"].to_list()
+        subcomm_sizes = typing["type"].value_counts()
+        big_subcomms = subcomm_sizes[subcomm_sizes>params.big].index
+        hosts = plasmid_presence["chr"].unique()
 
-            for subcomm in big_subcomms:
-                abs_presence = len(typing[typing["plasmid"].isin(plasmids) & (typing["type"]==subcomm)]["plasmid"].to_list())
-                if abs_presence == 0:
-                    subcomm_presence[subcomm].append(0)
-                else:
-                    subcomm_presence[subcomm].append(1)
-
-        presence_df = pd.DataFrame(data=presence_absence, index=names)
+        #1 if a host carries at least one plasmid of the subcommunity, 0 otherwise
+        merged = plasmid_presence.merge(typing[typing["type"].isin(big_subcomms)], on="plasmid")
+        presence_df = pd.crosstab(merged["chr"], merged["type"]).clip(upper=1)
+        presence_df = presence_df.reindex(index=hosts, columns=big_subcomms, fill_value=0).rename_axis(index=None, columns=None)
         presence_df.sort_index(inplace=True)
         presence_df.sort_index(axis=1, inplace=True)
         presence_df.to_csv(output.plasmid_presence_absence, sep="\t")
@@ -199,27 +219,29 @@ rule phylofactor:
         tree = config["host_tree"],
         traits = config["output_dir"] + "/host_presence/presence_per_host.tsv"
     output:
-        tree_vis = config["output"] + "/phylofactor/{cluster}/tree.pdf"
-        out_dir = config["output"] + "/phylofactor/{cluster}"
+        tree_vis = config["output_dir"] + "/phylofactor/{cluster}/tree.pdf",
+        rates = config["output_dir"] + "/phylofactor/{cluster}/rates.csv"
     params:
-        cluster = lambda wildcards: wildcards.cluster
+        cluster = lambda wildcards: wildcards.cluster,
+        out_dir = config["output_dir"] + "/phylofactor/{cluster}"
     conda: "phylofactor"
     resources:
         mem_mb=lambda wildcards, attempt: 20000*attempt
     shell:
-        "R < scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {output.out_dir} --no-save"
+        "R < scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {params.out_dir} --no-save"
 
 rule post_phylofactor:
     input:
-        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv",
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
         chr_to_plasmid = config["chr_to_plasmid"],
         tree = config["host_tree"],
         input_list = get_input_list(),
-        phylofactor_dir = config["output"] + "phylofactor/{cluster}"
+        rates = config["output_dir"] + "/phylofactor/{cluster}/rates.csv"
     output:
         out_dir = directory(config["output_dir"] + "/post_phylofactor/{cluster}")
     params:
         cluster = lambda wildcards: wildcards.cluster,
+        phylofactor_dir = config["output_dir"] + "/phylofactor/{cluster}",
         min_rate = 0.4,
         avg_rate = 0.5,
         min_plasmids = 4
@@ -228,21 +250,25 @@ rule post_phylofactor:
 
 rule dcj_trees:
     input:
-        pling_out = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '')
+        #depend on pling's declared outputs, since no rule outputs PLING_DIR itself
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
+        dcjs = PLING_DIR + "/all_plasmids_distances.tsv"
     output:
-        submatrices_dir = directory(config["output_dir"]"/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/submatrices")
+        submatrices_dir = directory(PLING_DIR + "/submatrices")
+    params:
+        pling_out = PLING_DIR
     conda:
         "pling"
     resources:
         pass
     shell:
-        "pling submatrix {input.pling_out} --vis_trees"
+        "pling submatrix {params.pling_out} --vis_trees"
 
 rule parsnp:
     input:
         fastas = lambda wildcards: get_list(wildcards.cluster)
     output:
-        parsnp_dir = directory(config["output_dir"] + "/{cluster}")
+        parsnp_dir = directory(config["output_dir"] + "/parsnp/{cluster}")
     params:
         cluster = lambda wildcards: wildcards.cluster
     resources:
@@ -263,10 +289,10 @@ rule parsnp:
 
 rule dcj_distr:
     input:
-        dcj_dists = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/all_plasmids_distances.tsv"
+        dcj_dists = PLING_DIR + "/all_plasmids_distances.tsv"
     output:
-        plot = "dcj_distr/hist_plot.png"
-        stats = "dcj_distr/stats.txt"
+        plot = config["output_dir"] + "/dcj_distr/hist_plot.png",
+        stats = config["output_dir"] + "/dcj_distr/stats.txt"
     run:
         import pandas as pd
         import seaborn as sns
@@ -277,34 +303,32 @@ rule dcj_distr:
         sns.histplot(data=dists,x="distance", ax=ax, discrete=True)
         plt.savefig(output.plot)
 
-        with open(output.stats) as f:
-            f.write("mode:"+str(dists["distance"].mode())+"\n")
+        with open(output.stats, "w") as f:
+            f.write("mode:"+str(dists["distance"].mode().tolist())+"\n")
             f.write("median:"+str(dists["distance"].median())+"\n")
             f.write("mean:"+str(dists["distance"].mean())+"\n")
 
 rule cluster_specs:
     input:
-        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv",
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
         tsv = config["output_dir"] + "/cluster_specs.tsv"
     script:
         "scripts/cluster_specs.py"
 
-rule rep_types:
-    pass
-
 rule boundary:
     input:
-        typing = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/typing.tsv",
-        hubs = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/dcj_thresh_" + config["dcj-indel"] + "_graph/objects/hub_plasmids.csv",
-        dcjs = config["output_dir"] + "/pling_d" + config["dcj-indel"] + "_c" + config["containment"].replace(".", '') + "/all_plasmids_distnaces.tsv"
+        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
+        hubs = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/hub_plasmids.csv",
+        communities_pickle = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/communities.pkl",
+        dcjs = PLING_DIR + "/all_plasmids_distances.tsv"
     params:
         big_subcomm_size = config["big_subcomm_size"]
     output:
         median_hist = config["output_dir"] + "/boundary/dcj_median.png", mean_hist = config["output_dir"] + "/boundary/dcj_mean.png",   # histograms of boundary values
         median_box = config["output_dir"] + "/boundary/internal_vs_boundary_median.png",  mean_box = config["output_dir"] + "/boundary/internal_vs_boundary_mean.png",    # swarm + box plots, internal vs boundary
-        tsv = config["output_dir"] + "/boundary/dcj_averages.tsv
+        tsv = config["output_dir"] + "/boundary/dcj_averages.tsv"
     script:
         "scripts/boundary.py"
 

@@ -11,16 +11,16 @@ thresholds = [0.8, 0.9, 0.99]
 
 cores = {"cluster":[], "threshold":[], "core_size_%":[], "cluster_size":[]}
 
-ggcaller = snakemake.input.ggcaller_dir
+ggcaller = snakemake.params.ggcaller_dir
 cluster_path = snakemake.input.list_dir
 clusters = [os.path.basename(el).replace('.txt','').replace("_list", '') for el in glob.glob(f"{cluster_path}/*.txt")]
-metadata = pd.read_csv(snakemake.input.mob, usecols = ["sample_id", "size"])
+metadata = pd.read_csv(snakemake.input.mob, sep="\t", usecols = ["sample_id", "size"])
 for thresh in thresholds:
     try:
         for cluster in clusters:
             rel_core_size = []
             dir = f"{ggcaller}/{cluster}"
-            genes = pd.read_csv(f"{dir}/gene_presence_absence_roary.csv")
+            genes = pd.read_csv(f"{dir}/panaroo/gene_presence_absence_roary.csv")
             fastas = [el[0] for el in pd.read_csv(f"{cluster_path}/{cluster}.txt", header=None).values]
             num_isolates = len(fastas)
             cores["cluster_size"].append(num_isolates)

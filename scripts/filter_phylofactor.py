@@ -15,7 +15,7 @@ def is_contained(clade, other_clade):
 
 typing = pd.read_csv(snakemake.input.typing, sep="\t")
 chr_to_plasmid = pd.read_csv(snakemake.input.chr_to_plasmid, sep="\t")
-rates = pd.read_csv(os.path.join(snakemake.input.phylofactor_dir, "rates.csv"))
+rates = pd.read_csv(snakemake.input.rates)
 host_tree = TreeNode.read(snakemake.input.tree, format="newick", convert_underscores=False)
 
 fastafiles_list = [el[0] for el in pd.read_csv(snakemake.input.input_list, header=None).values]
@@ -35,7 +35,7 @@ plasmids = typing[typing["type"]==subcom]["plasmid"].to_list()
 
 #find clades which pass the rate thresholds
 clades = {}
-for file in glob.glob(os.path.join(snakemake.input.phylofactor_dir, "clades", "*.txt")):
+for file in glob.glob(os.path.join(snakemake.params.phylofactor_dir, "clades", "*.txt")):
     clade = os.path.basename(file).replace(".txt", "")
     with open(file, "r") as f:
         genomes = set(line.strip() for line in f if line.strip())

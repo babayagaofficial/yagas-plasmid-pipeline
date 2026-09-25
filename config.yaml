@@ -11,3 +11,7 @@ dcj-indel: 4
 containment: 0.5
 
 big_subcomm_size: 10
+
+ggcallaroo: "/path/to/ggcallaroo"
+
+bakta_db: "/path/to/bakta_db"
