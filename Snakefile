@@ -12,20 +12,33 @@ LOG_DIR = config["output_dir"] + "/logs"
 
 PLING_DIR = config["output_dir"] + "/pling_d" + str(config["dcj-indel"]) + "_c" + str(config["containment"]).replace(".", "")
 
+def get_rule_config(rule):
+    #rule-specific values override the defaults
+    return {**config["resources"]["default"], **config["resources"].get(rule, {})}
+
 def get_resources(rule):
-    #rule-specific values override the defaults; memory and time scale with the retry attempt
-    res = {**config["resources"]["default"], **config["resources"].get(rule, {})}
+    #memory and time scale with the retry attempt; threads are set separately with get_threads
+    res = {key: value for key, value in get_rule_config(rule).items() if key!="threads"}
     return {key: (lambda wildcards, attempt, value=value: value*attempt) for key, value in res.items()}
 
+def get_threads(rule):
+    return get_rule_config(rule).get("threads", 1)
+
+#input is given either as a list of fasta files or as one multifasta; the other is created from it
+INPUT_LIST = config.get("input_list")
+MULTIFASTA = config.get("multifasta")
+if bool(INPUT_LIST)==bool(MULTIFASTA):
+    raise ValueError("Set exactly one of input_list or multifasta in config.yaml")
+
 def get_multifasta():
-    if config["input_list"]:
+    if INPUT_LIST:
         return config["output_dir"] + "/all_plasmids.fna"
     else:
-        return config["multifasta"]
+        return MULTIFASTA
 
 def get_input_list():
-    if config["input_list"]:
-        return config["input_list"]
+    if INPUT_LIST:
+        return INPUT_LIST
     else:
         return config["output_dir"] + "/plasmid_list.txt"
 
@@ -65,40 +78,44 @@ rule all:
         rel_core_tsv = config["output_dir"] + "/rel_core/rel_core.tsv",
         post_phylofactor = lambda wildcards: [config["output_dir"] + f"/post_phylofactor/{cluster}" for cluster in get_clusters()]
 
-rule separate_fastas:
-    input:
-        multi = config["multifasta"]
-    output:
-        fasta_dir = directory(config["output_dir"] + "/fastas"),
-        fasta_list = config["output_dir"] + "/plasmid_list.txt"
-    resources: **get_resources("separate_fastas")
-    run:
-        from Bio import SeqIO
-        from Bio.SeqRecord import SeqRecord
+if MULTIFASTA:
+    rule separate_fastas:
+        input:
+            multi = MULTIFASTA
+        output:
+            fasta_dir = directory(config["output_dir"] + "/fastas"),
+            fasta_list = config["output_dir"] + "/plasmid_list.txt"
+        resources: **get_resources("separate_fastas")
+        threads: get_threads("separate_fastas")
+        run:
+            from Bio import SeqIO
+            from Bio.SeqRecord import SeqRecord
 
-        os.makedirs(output.fasta_dir, exist_ok=True)
-        with open(output.fasta_list, "w") as fasta_list:
-            for record in SeqIO.parse(input.multi, "fasta"):
-                sep_record = SeqRecord(record.seq, record.id, "")
-                with open(f"{output.fasta_dir}/{record.id}.fna", "w") as output_handle:
-                    SeqIO.write(sep_record, output_handle, "fasta")
-                fasta_list.write(f"{output.fasta_dir}/{record.id}.fna\n")
+            os.makedirs(output.fasta_dir, exist_ok=True)
+            with open(output.fasta_list, "w") as fasta_list:
+                for record in SeqIO.parse(input.multi, "fasta"):
+                    sep_record = SeqRecord(record.seq, record.id, "")
+                    with open(f"{output.fasta_dir}/{record.id}.fna", "w") as output_handle:
+                        SeqIO.write(sep_record, output_handle, "fasta")
+                    fasta_list.write(f"{output.fasta_dir}/{record.id}.fna\n")
 
-rule cat_fastas:
-    input:
-        fastas = config["input_list"]
-    output:
-        multifasta = config["output_dir"] + "/all_plasmids.fna"
-    resources: **get_resources("cat_fastas")
-    run:
-        from Bio import SeqIO
+if INPUT_LIST:
+    rule cat_fastas:
+        input:
+            fastas = INPUT_LIST
+        output:
+            multifasta = config["output_dir"] + "/all_plasmids.fna"
+        resources: **get_resources("cat_fastas")
+        threads: get_threads("cat_fastas")
+        run:
+            from Bio import SeqIO
 
-        with open(output.multifasta, "w") as multi:
-            with open(input.fastas, "r") as f:
-                for line in f:
-                    path = line.strip()
-                    record = SeqIO.read(path, "fasta")
-                    SeqIO.write(multi, record)
+            with open(output.multifasta, "w") as multi:
+                with open(input.fastas, "r") as f:
+                    for line in f:
+                        path = line.strip()
+                        record = SeqIO.read(path, "fasta")
+                        SeqIO.write(multi, record)
 
 rule pling:
     input:
@@ -115,9 +132,9 @@ rule pling:
     conda:
         "pling"
     resources: **get_resources("pling")
+    threads: get_threads("pling")
     log:
         LOG_DIR + "/pling.log"
-    threads: config["pling_threads"]
     shell:
         "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment} > {log} 2>&1"
 
@@ -129,6 +146,7 @@ rule mobtyper:
     conda:
         "mobsuite"
     resources: **get_resources("mobtyper")
+    threads: get_threads("mobtyper")
     log:
         LOG_DIR + "/mobtyper.log"
     shell:
@@ -167,7 +185,7 @@ rule ggcallaroo:
     conda:
         "ggcallaroo"
     resources: **get_resources("ggcallaroo")
-    threads: 8
+    threads: get_threads("ggcallaroo")
     params:
         ggcallaroo_path = config["ggcallaroo"],
         bakta_db = config["bakta_db"],
@@ -186,7 +204,7 @@ rule pangraph:
     output:
         ann_dir = directory(config["output_dir"] + "/pangraph/{cluster}")
     resources: **get_resources("pangraph")
-    threads: 8
+    threads: get_threads("pangraph")
     log:
         LOG_DIR + "/pangraph/{cluster}.log"
     shell:
@@ -209,6 +227,7 @@ rule rel_core_sizes:
     log:
         LOG_DIR + "/rel_core_sizes.log"
     resources: **get_resources("rel_core_sizes")
+    threads: get_threads("rel_core_sizes")
     script:
         "scripts/get_core_sizes.py"
 
@@ -248,6 +267,7 @@ rule phylofactor:
         out_dir = config["output_dir"] + "/phylofactor/{cluster}"
     conda: "phylofactor"
     resources: **get_resources("phylofactor")
+    threads: get_threads("phylofactor")
     log:
         LOG_DIR + "/phylofactor/{cluster}.log"
     shell:
@@ -271,6 +291,7 @@ rule post_phylofactor:
     log:
         LOG_DIR + "/post_phylofactor/{cluster}.log"
     resources: **get_resources("post_phylofactor")
+    threads: get_threads("post_phylofactor")
     script:
         "scripts/filter_phylofactor.py"
 
@@ -286,6 +307,7 @@ rule dcj_trees:
     conda:
         "pling"
     resources: **get_resources("dcj_trees")
+    threads: get_threads("dcj_trees")
     log:
         LOG_DIR + "/dcj_trees.log"
     shell:
@@ -299,7 +321,7 @@ rule parsnp:
     params:
         cluster = lambda wildcards: wildcards.cluster
     resources: **get_resources("parsnp")
-    threads: config["parsnp_threads"]
+    threads: get_threads("parsnp")
     shadow: "shallow"
     log:
         LOG_DIR + "/parsnp/{cluster}.log"
@@ -358,6 +380,7 @@ rule boundary:
     log:
         LOG_DIR + "/boundary.log"
     resources: **get_resources("boundary")
+    threads: get_threads("boundary")
     script:
         "scripts/boundary.py"
 
