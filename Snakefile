@@ -8,6 +8,8 @@ configfile: "config.yaml"
 wildcard_constraints:
     cluster="[^/]+"
 
+LOG_DIR = config["output_dir"] + "/logs"
+
 PLING_DIR = config["output_dir"] + "/pling_d" + str(config["dcj-indel"]) + "_c" + str(config["containment"]).replace(".", "")
 
 def get_multifasta():
@@ -50,7 +52,10 @@ rule all:
         plot = config["output_dir"] + "/dcj_distr/hist_plot.png",
         stats = config["output_dir"] + "/dcj_distr/stats.txt",
         parsnp_dir = lambda wildcards: [config["output_dir"] + f"/parsnp/{cluster}" for cluster in get_clusters()],
-        dcj_trees = PLING_DIR + "/submatrices"
+        dcj_trees = PLING_DIR + "/submatrices",
+        rel_core_plot = config["output_dir"] + "/rel_core/rel_core_plot.png",
+        rel_core_tsv = config["output_dir"] + "/rel_core/rel_core.tsv",
+        post_phylofactor = lambda wildcards: [config["output_dir"] + f"/post_phylofactor/{cluster}" for cluster in get_clusters()]
 
 rule separate_fastas:
     input:
@@ -101,9 +106,11 @@ rule pling:
         "pling"
     resources:
         pass
+    log:
+        LOG_DIR + "/pling.log"
     threads: config["pling_threads"]
     shell:
-        "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment}"
+        "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment} > {log} 2>&1"
 
 rule mobtyper:
     input:
@@ -114,8 +121,10 @@ rule mobtyper:
         "mobsuite"
     resources:
         pass
+    log:
+        LOG_DIR + "/mobtyper.log"
     shell:
-        "mob_typer --multi --infile {input.fastas} --out_file {output.mob}"
+        "mob_typer --multi --infile {input.fastas} --out_file {output.mob} > {log} 2>&1"
 
 checkpoint cluster_lists:
     input:
@@ -157,9 +166,11 @@ rule ggcallaroo:
         bakta_db = config["bakta_db"],
         ggcaller_cli_args = "",
         panaroo_cli_args = ""
+    log:
+        LOG_DIR + "/ggcallaroo/{cluster}.log"
     shell:
         """
-        snakemake --cores {threads} --use-conda --snakefile {params.ggcallaroo_path}/Snakefile --directory {params.ggcallaroo_path} --config refs={input.fasta_list} output_dir={output.ann_dir} bakta_db={params.bakta_db}
+        snakemake --cores {threads} --use-conda --snakefile {params.ggcallaroo_path}/Snakefile --directory {params.ggcallaroo_path} --config refs={input.fasta_list} output_dir={output.ann_dir} bakta_db={params.bakta_db} > {log} 2>&1
         """
 
 rule pangraph:
@@ -170,11 +181,13 @@ rule pangraph:
     resources:
         mem_mb=lambda wildcards, attempt: 40000*attempt
     threads: 8
+    log:
+        LOG_DIR + "/pangraph/{cluster}.log"
     shell:
         """
         mkdir -p {output.ann_dir}
-        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 {input.fastas} > {output.ann_dir}/pangraph.json
-        pangraph export gfa --output {output.ann_dir}/pangraph.gfa --minimum-length 200 {output.ann_dir}/pangraph.json
+        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 {input.fastas} > {output.ann_dir}/pangraph.json 2> {log}
+        pangraph export gfa --output {output.ann_dir}/pangraph.gfa --minimum-length 200 {output.ann_dir}/pangraph.json >> {log} 2>&1
         """
 
 rule rel_core_sizes:
@@ -187,6 +200,8 @@ rule rel_core_sizes:
         tsv = config["output_dir"] + "/rel_core/rel_core.tsv"
     params:
         ggcaller_dir = config["output_dir"] + "/ggcallaroo"
+    log:
+        LOG_DIR + "/rel_core_sizes.log"
     script:
         "scripts/get_core_sizes.py"
 
@@ -227,8 +242,10 @@ rule phylofactor:
     conda: "phylofactor"
     resources:
         mem_mb=lambda wildcards, attempt: 20000*attempt
+    log:
+        LOG_DIR + "/phylofactor/{cluster}.log"
     shell:
-        "R < scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {params.out_dir} --no-save"
+        "R < scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {params.out_dir} --no-save > {log} 2>&1"
 
 rule post_phylofactor:
     input:
@@ -245,6 +262,8 @@ rule post_phylofactor:
         min_rate = 0.4,
         avg_rate = 0.5,
         min_plasmids = 4
+    log:
+        LOG_DIR + "/post_phylofactor/{cluster}.log"
     script:
         "scripts/filter_phylofactor.py"
 
@@ -261,8 +280,10 @@ rule dcj_trees:
         "pling"
     resources:
         pass
+    log:
+        LOG_DIR + "/dcj_trees.log"
     shell:
-        "pling submatrix {params.pling_out} --vis_trees"
+        "pling submatrix {params.pling_out} --vis_trees > {log} 2>&1"
 
 rule parsnp:
     input:
@@ -275,16 +296,14 @@ rule parsnp:
         mem_mb=lambda wildcards, attempt: 40000*attempt
     threads: config["parsnp_threads"]
     shadow: "shallow"
+    log:
+        LOG_DIR + "/parsnp/{cluster}.log"
     run:
         os.mkdir(params.cluster)
         for file in input.fastas:
             shutil.copy(file, params.cluster)
-        try:
-            subprocess.run(f"parsnp -c {params.cluster} -p {threads} -o {output.parsnp_dir}", shell=True, check=True, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            print(e.stderr.decode())
-            print(e)
-            raise e
+        with open(log[0], "w") as log_f:
+            subprocess.run(f"parsnp -c {params.cluster} -p {threads} -o {output.parsnp_dir}", shell=True, check=True, stdout=log_f, stderr=subprocess.STDOUT)
 
 
 rule dcj_distr:
@@ -314,6 +333,8 @@ rule cluster_specs:
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
         tsv = config["output_dir"] + "/cluster_specs.tsv"
+    log:
+        LOG_DIR + "/cluster_specs.log"
     script:
         "scripts/cluster_specs.py"
 
@@ -329,6 +350,8 @@ rule boundary:
         median_hist = config["output_dir"] + "/boundary/dcj_median.png", mean_hist = config["output_dir"] + "/boundary/dcj_mean.png",   # histograms of boundary values
         median_box = config["output_dir"] + "/boundary/internal_vs_boundary_median.png",  mean_box = config["output_dir"] + "/boundary/internal_vs_boundary_mean.png",    # swarm + box plots, internal vs boundary
         tsv = config["output_dir"] + "/boundary/dcj_averages.tsv"
+    log:
+        LOG_DIR + "/boundary.log"
     script:
         "scripts/boundary.py"
 

@@ -1,3 +1,6 @@
+import sys
+sys.stdout = sys.stderr = open(snakemake.log[0], "w")
+
 from typing import cast
 from plasnet.communities import Communities
 import pandas as pd

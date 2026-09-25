@@ -1,3 +1,6 @@
+import sys
+sys.stdout = sys.stderr = open(snakemake.log[0], "w")
+
 import glob
 import os
 import shutil
