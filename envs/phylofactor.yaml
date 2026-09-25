@@ -1,0 +1,19 @@
+#phylofactor is not on conda; phylofactor.post-deploy.sh installs it from GitHub, its dependencies are listed here
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base >=4.3
+  - r-remotes
+  - r-ape
+  - r-magrittr
+  - r-data.table
+  - r-matrix
+  - r-phangorn
+  - r-caper
+  - r-mgcv
+  - r-ggplot2
+  - r-viridis
+  - r-tidyverse
+  - bioconductor-biostrings
+  - bioconductor-ggtree

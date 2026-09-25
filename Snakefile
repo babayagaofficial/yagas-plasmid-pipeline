@@ -1,7 +1,5 @@
 import os
 import glob
-import shutil
-import subprocess
 
 configfile: "config.yaml"
 
@@ -135,7 +133,7 @@ rule pling:
         containment = float(config["containment"]),
         pling_out = PLING_DIR
     conda:
-        "pling"
+        "envs/pling.yaml"
     resources: **get_resources("pling")
     threads: get_threads("pling")
     log:
@@ -149,7 +147,7 @@ rule mobtyper:
     output:
         mob = config["output_dir"] + "/mobtyper_results.txt"
     conda:
-        "mobsuite"
+        "envs/mobsuite.yaml"
     resources: **get_resources("mobtyper")
     threads: get_threads("mobtyper")
     log:
@@ -225,8 +223,8 @@ rule pangraph:
     shell:
         """
         mkdir -p {output.ann_dir}
-        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 {input.fastas} > {output.ann_dir}/pangraph.json 2> {log}
-        pangraph export gfa --output {output.ann_dir}/pangraph.gfa --minimum-length 200 {output.ann_dir}/pangraph.json >> {log} 2>&1
+        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 -j {threads} {input.fastas} > {output.ann_dir}/pangraph.json 2> {log}
+        pangraph export gfa --output {output.ann_dir}/pangraph.gfa --minimum-length 200 -j {threads} {output.ann_dir}/pangraph.json >> {log} 2>&1
         """
 
 rule rel_core_sizes:
@@ -243,6 +241,8 @@ rule rel_core_sizes:
         LOG_DIR + "/rel_core_sizes.log"
     resources: **get_resources("rel_core_sizes")
     threads: get_threads("rel_core_sizes")
+    conda:
+        "envs/python.yaml"
     script:
         "scripts/get_core_sizes.py"
 
@@ -280,7 +280,8 @@ rule phylofactor:
     params:
         cluster = lambda wildcards: wildcards.cluster,
         out_dir = config["output_dir"] + "/phylofactor/{cluster}"
-    conda: "phylofactor"
+    conda:
+        "envs/phylofactor.yaml"
     resources: **get_resources("phylofactor")
     threads: get_threads("phylofactor")
     log:
@@ -307,6 +308,8 @@ rule post_phylofactor:
         LOG_DIR + "/post_phylofactor/{cluster}.log"
     resources: **get_resources("post_phylofactor")
     threads: get_threads("post_phylofactor")
+    conda:
+        "envs/python.yaml"
     script:
         "scripts/filter_phylofactor.py"
 
@@ -320,7 +323,7 @@ rule dcj_trees:
     params:
         pling_out = PLING_DIR
     conda:
-        "pling"
+        "envs/pling.yaml"
     resources: **get_resources("dcj_trees")
     threads: get_threads("dcj_trees")
     log:
@@ -340,12 +343,14 @@ rule parsnp:
     shadow: "shallow"
     log:
         LOG_DIR + "/parsnp/{cluster}.log"
-    run:
-        os.mkdir(params.cluster)
-        for file in input.fastas:
-            shutil.copy(file, params.cluster)
-        with open(log[0], "w") as log_f:
-            subprocess.run(f"parsnp -c {params.cluster} -p {threads} -o {output.parsnp_dir}", shell=True, check=True, stdout=log_f, stderr=subprocess.STDOUT)
+    conda:
+        "envs/parsnp.yaml"
+    shell:
+        """
+        mkdir {params.cluster}
+        cp {input.fastas} {params.cluster}/
+        parsnp -d {params.cluster} -c -p {threads} -o {output.parsnp_dir} > {log} 2>&1
+        """
 
 
 rule dcj_distr:
@@ -377,6 +382,8 @@ rule cluster_specs:
         tsv = config["output_dir"] + "/cluster_specs.tsv"
     log:
         LOG_DIR + "/cluster_specs.log"
+    conda:
+        "envs/python.yaml"
     script:
         "scripts/cluster_specs.py"
 
@@ -396,6 +403,8 @@ rule boundary:
         LOG_DIR + "/boundary.log"
     resources: **get_resources("boundary")
     threads: get_threads("boundary")
+    conda:
+        "envs/python.yaml"
     script:
         "scripts/boundary.py"
 

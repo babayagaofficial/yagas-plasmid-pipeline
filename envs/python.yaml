@@ -1,0 +1,14 @@
+#environment for the python scripts in scripts/
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python
+  - pandas
+  - matplotlib
+  - seaborn >=0.13
+  - networkx
+  - biopython
+  - scikit-bio
+  #must match the plasnet version used by pling, since boundary.py loads pling's pickled communities
+  - plasnet >=0.7.0
