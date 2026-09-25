@@ -137,7 +137,7 @@ rule pling:
         dcj = int(config["dcj-indel"]),
         containment = float(config["containment"]),
         sourmash = get_sourmash(),
-        batch_size = config[batch_size],
+        batch_size = config["batch_size"],
         pling_out = PLING_DIR
     conda:
         "envs/pling.yaml"
