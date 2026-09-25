@@ -15,7 +15,9 @@ containment: 0.5
 
 big_subcomm_size: 10
 
-ggcallaroo: "/path/to/ggcallaroo"
+ggcaller_cli_args: "--save"
+
+panaroo_cli_args: "--clean-mode moderate"
 
 bakta_db: "/path/to/bakta_db"
 
@@ -26,7 +28,9 @@ resources:
   default:          {mem_mb: 4000,  runtime: 60,  threads: 1}
   pling:            {mem_mb: 32000, runtime: 720, threads: 16}
   mobtyper:         {mem_mb: 8000,  runtime: 240, threads: 1}
-  ggcallaroo:       {mem_mb: 32000, runtime: 720, threads: 8}
+  ggcallaroo_ggcaller:        {mem_mb: 32000, runtime: 720, threads: 8}
+  ggcallaroo_panaroo:         {mem_mb: 16000, runtime: 240, threads: 8}
+  ggcallaroo_bakta_proteins:  {mem_mb: 16000, runtime: 240, threads: 8}
   pangraph:         {mem_mb: 40000, runtime: 240, threads: 8}
   parsnp:           {mem_mb: 40000, runtime: 240, threads: 16}
   phylofactor:      {mem_mb: 20000, runtime: 120, threads: 1}

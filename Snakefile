@@ -8,6 +8,11 @@ configfile: "config.yaml"
 wildcard_constraints:
     cluster="[^/]+"
 
+#{cluster} in ggCallaroo's output_dir turns each of its rules into a per-cluster rule
+GGCALLAROO_DIR = config["output_dir"] + "/ggcallaroo/{cluster}"
+GGCALLAROO_OUTPUTS = ["pan_genome_reference.fa", "combined_DNA_CDS.fasta", "combined_protein_CDS.fasta", "gene_data.csv",
+                      "gene_presence_absence.csv", "gene_presence_absence_roary.csv", "final_graph.gml", "pre_filt_graph.gml"]
+
 LOG_DIR = config["output_dir"] + "/logs"
 
 PLING_DIR = config["output_dir"] + "/pling_d" + str(config["dcj-indel"]) + "_c" + str(config["containment"]).replace(".", "")
@@ -64,7 +69,7 @@ localrules: all, cluster_lists, sc_in_chr, dcj_distr, cluster_specs
 
 rule all:
     input:
-        ggcallaroo = lambda wildcards: [config["output_dir"] + f"/ggcallaroo/{cluster}" for cluster in get_clusters()],
+        ggcallaroo = lambda wildcards: [GGCALLAROO_DIR.format(cluster=cluster) + "/annotated/" + file for cluster in get_clusters() for file in GGCALLAROO_OUTPUTS],
         pangraph = lambda wildcards: [config["output_dir"] + f"/pangraph/{cluster}" for cluster in get_clusters()],
         median_hist = config["output_dir"] + "/boundary/dcj_median.png", mean_hist = config["output_dir"] + "/boundary/dcj_mean.png",   # histograms of boundary values
         median_box = config["output_dir"] + "/boundary/internal_vs_boundary_median.png",  mean_box = config["output_dir"] + "/boundary/internal_vs_boundary_mean.png",    # swarm + box plots, internal vs boundary
@@ -177,26 +182,36 @@ checkpoint cluster_lists:
                     for name in clusters_df[clusters_df["type"]==cluster]["plasmid"].values:
                         f.write(fastafiles[name] + "\n")
 
-rule ggcallaroo:
-    input:
-        fasta_list = lambda wildcards: get_cluster_list(wildcards.cluster)
-    output:
-        ann_dir = directory(config["output_dir"] + "/ggcallaroo/{cluster}")
-    conda:
-        "ggcallaroo"
-    resources: **get_resources("ggcallaroo")
-    threads: get_threads("ggcallaroo")
-    params:
-        ggcallaroo_path = config["ggcallaroo"],
-        bakta_db = config["bakta_db"],
-        ggcaller_cli_args = "",
-        panaroo_cli_args = ""
-    log:
-        LOG_DIR + "/ggcallaroo/{cluster}.log"
-    shell:
-        """
-        snakemake --cores {threads} --use-conda --snakefile {params.ggcallaroo_path}/Snakefile --directory {params.ggcallaroo_path} --config refs={input.fasta_list} output_dir={output.ann_dir} bakta_db={params.bakta_db} > {log} 2>&1
-        """
+GGCALLAROO_CONFIG = {
+    "output_dir": GGCALLAROO_DIR,
+    "refs": lambda wildcards: get_cluster_list(wildcards.cluster),
+    "reads": None,
+    "ggcaller_cli_args": config.get("ggcaller_cli_args", "--save"),
+    "panaroo_cli_args": config.get("panaroo_cli_args", "--clean-mode moderate"),
+    "bakta_db": config["bakta_db"]
+}
+
+module ggcallaroo:
+    #pinned to a commit, since the rules used below are referred to by name
+    snakefile: github("samhorsfield96/ggCallaroo", path="Snakefile", commit="4ffa1068bc6fd06f90abcab4a7e1d6277e45ba9b")
+    config: GGCALLAROO_CONFIG
+
+#ggCallaroo's own rule all is excluded, since its inputs contain the {cluster} wildcard
+use rule translate_representatives, annotate_pan_ref, annotate_dna_CDS, annotate_dna_prot, annotate_gene_data, annotate_gpa, annotate_gpa_roary, annotate_gml, annotate_gml_pref_filt from ggcallaroo as ggcallaroo_* with:
+    resources: **get_resources("default")
+    threads: get_threads("default")
+
+use rule ggcaller from ggcallaroo as ggcallaroo_ggcaller with:
+    resources: **get_resources("ggcallaroo_ggcaller")
+    threads: get_threads("ggcallaroo_ggcaller")
+
+use rule panaroo from ggcallaroo as ggcallaroo_panaroo with:
+    resources: **get_resources("ggcallaroo_panaroo")
+    threads: get_threads("ggcallaroo_panaroo")
+
+use rule bakta_proteins from ggcallaroo as ggcallaroo_bakta_proteins with:
+    resources: **get_resources("ggcallaroo_bakta_proteins")
+    threads: get_threads("ggcallaroo_bakta_proteins")
 
 rule pangraph:
     input:
@@ -216,7 +231,7 @@ rule pangraph:
 
 rule rel_core_sizes:
     input:
-        ggcallaroo_dirs = lambda wildcards: [config["output_dir"] + f"/ggcallaroo/{cluster}" for cluster in get_clusters()],
+        panaroo = lambda wildcards: [GGCALLAROO_DIR.format(cluster=cluster) + "/panaroo/pan_genome_reference.fa" for cluster in get_clusters()],
         list_dir = config["output_dir"] + "/cluster_lists",
         mob = config["output_dir"] + "/mobtyper_results.txt"
     output:
