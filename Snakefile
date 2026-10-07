@@ -279,7 +279,8 @@ rule phylofactor:
         rates = config["output_dir"] + "/phylofactor/{cluster}/rates.csv"
     params:
         cluster = lambda wildcards: wildcards.cluster,
-        out_dir = config["output_dir"] + "/phylofactor/{cluster}"
+        out_dir = config["output_dir"] + "/phylofactor/{cluster}",
+        snakefile_dir=os.path.dirname(sys.argv[sys.argv.index("--snakefile")+1])
     conda:
         "envs/phylofactor.yaml"
     resources: **get_resources("phylofactor")
@@ -287,7 +288,7 @@ rule phylofactor:
     log:
         LOG_DIR + "/phylofactor/{cluster}.log"
     shell:
-        "R < scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {params.out_dir} --no-save > {log} 2>&1"
+        "R < {params.snakefile_dir}/scripts/phylofactor.R {input.tree} {input.traits} {params.cluster} {params.out_dir} --no-save > {log} 2>&1"
 
 rule post_phylofactor:
     input:
