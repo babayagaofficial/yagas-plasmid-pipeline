@@ -180,9 +180,11 @@ checkpoint cluster_lists:
                     for name in clusters_df[clusters_df["type"]==cluster]["plasmid"].values:
                         f.write(fastafiles[name] + "\n")
 
+#the module config is pickled for ggCallaroo's script rules, so it must not contain functions;
+#the checkpoint dependency of refs is added to the ggcaller rule below instead
 GGCALLAROO_CONFIG = {
     "output_dir": GGCALLAROO_DIR,
-    "refs": lambda wildcards: get_cluster_list(wildcards.cluster),
+    "refs": config["output_dir"] + "/cluster_lists/{cluster}.txt",
     "reads": None,
     "ggcaller_cli_args": config.get("ggcaller_cli_args", "--save"),
     "panaroo_cli_args": config.get("panaroo_cli_args", "--clean-mode moderate"),
@@ -200,6 +202,8 @@ use rule translate_representatives, annotate_pan_ref, annotate_dna_CDS, annotate
     threads: get_threads("default")
 
 use rule ggcaller from ggcallaroo as ggcallaroo_ggcaller with:
+    input:
+        samples = lambda wildcards: get_cluster_list(wildcards.cluster)
     resources: **get_resources("ggcallaroo_ggcaller")
     threads: get_threads("ggcallaroo_ggcaller")
 
@@ -280,7 +284,7 @@ rule phylofactor:
     params:
         cluster = lambda wildcards: wildcards.cluster,
         out_dir = config["output_dir"] + "/phylofactor/{cluster}",
-        snakefile_dir=os.path.dirname(sys.argv[sys.argv.index("--snakefile")+1])
+        snakefile_dir = workflow.basedir
     conda:
         "envs/phylofactor.yaml"
     resources: **get_resources("phylofactor")
