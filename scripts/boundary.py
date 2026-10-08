@@ -8,7 +8,6 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import seaborn as sns
 from statistics import mean, median
-import itertools
 
 def get_dists(dist_filepath):
     dcj={}
@@ -45,8 +44,9 @@ for community in communities:
         if len(boundary_dcj)>0:
             rows.append({"subcommunity":com, "median":median(boundary_dcj), "mean":mean(boundary_dcj), "location":"boundary"})
 
-        internal_dcj = [dists[frozenset(pair)] for pair in itertools.combinations(plasmids,2)]
-        rows.append({"subcommunity":com, "median":median(internal_dcj), "mean":mean(internal_dcj), "location":"internal"})
+        internal_dcj = [dists[frozenset(edge)] for edge in community.subgraph(plasmids).edges()]
+        if len(internal_dcj)>0:
+            rows.append({"subcommunity":com, "median":median(internal_dcj), "mean":mean(internal_dcj), "location":"internal"})
 
 results = pd.DataFrame(rows, columns=["subcommunity", "median", "mean", "location"])
 boundary = results[results["location"]=="boundary"]

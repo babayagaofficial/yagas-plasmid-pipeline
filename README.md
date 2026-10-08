@@ -103,7 +103,7 @@ All results are written to `output_dir`. Subcommunities analysed individually ar
 | `mobtyper_results.txt` | MOB-typer results for all plasmids |
 | `cluster_specs.tsv` | Size, average length, replicon, relaxase, MPF types and predicted mobility per subcommunity |
 | `dcj_distr/` | Histogram and summary statistics of all DCJ-Indel distances |
-| `boundary/` | Median and mean DCJ-Indel distances on subcommunity boundaries vs within subcommunities (`dcj_averages.tsv` and plots) |
+| `boundary/` | Median and mean DCJ-Indel distances of pling network edges on subcommunity boundaries (excluding edges to hub plasmids) vs edges within subcommunities (`dcj_averages.tsv` and plots) |
 | `cluster_lists/` | FASTA lists of the subcommunities analysed individually |
 | `ggcallaroo/{cluster}/` | ggCaller, Panaroo and Bakta results; annotated pangenome files are in `annotated/` |
 | `rel_core/` | Relative core genome sizes per subcommunity |
