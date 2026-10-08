@@ -3,3 +3,5 @@ channels:
   - bioconda
 dependencies:
   - pling >=3.0.3
+  - quicktree
+  - ete3
