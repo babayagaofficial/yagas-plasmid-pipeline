@@ -334,7 +334,7 @@ rule dcj_trees:
     log:
         LOG_DIR + "/dcj_trees.log"
     shell:
-        "pling submatrix {params.pling_out} --vis_trees > {log} 2>&1"
+        "pling submatrix {params.pling_out} > {log} 2>&1"
 
 rule parsnp:
     input:
