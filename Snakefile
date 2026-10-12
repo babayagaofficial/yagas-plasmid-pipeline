@@ -334,7 +334,8 @@ rule dcj_trees:
     log:
         LOG_DIR + "/dcj_trees.log"
     shell:
-        "pling submatrix {params.pling_out} > {log} 2>&1"
+        #ete3 needs Qt; the offscreen platform lets Qt render without a display
+        "QT_QPA_PLATFORM=offscreen pling submatrix {params.pling_out} --vis_trees > {log} 2>&1"
 
 rule parsnp:
     input:
