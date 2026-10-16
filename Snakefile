@@ -119,41 +119,79 @@ if INPUT_LIST:
                         record = SeqIO.read(path, "fasta")
                         SeqIO.write(record, multi, "fasta")
 
-rule pling:
-    input:
-        fastas = get_input_list()
-    output:
-        typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
-        hubs = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/hub_plasmids.csv",
-        communities_pickle = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/communities.pkl",
-        dcjs = PLING_DIR + "/all_plasmids_distances.tsv"
-    params:
-        dcj = int(config["dcj-indel"]),
-        containment = float(config["containment"]),
-        pling_other_cli = config["pling_other_cli"],
-        pling_out = PLING_DIR
-    conda:
-        "envs/pling.yaml"
-    resources: **get_resources("pling")
-    threads: get_threads("pling")
-    log:
-        LOG_DIR + "/pling.log"
-    shell:
-        "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment} {params.pling_other_cli} > {log} 2>&1"
+#results for pling and/or mobtyper can be given from outside the pipeline instead of being computed
+EXTERNAL_PLING = config.get("external_pling_dir")
+EXTERNAL_MOBTYPER = config.get("external_mobtyper")
 
-rule mobtyper:
-    input:
-        fastas = get_multifasta()
-    output:
-        mob = config["output_dir"] + "/mobtyper_results.txt"
-    conda:
-        "envs/mobsuite.yaml"
-    resources: **get_resources("mobtyper")
-    threads: get_threads("mobtyper")
-    log:
-        LOG_DIR + "/mobtyper.log"
-    shell:
-        "mob_typer --multi --infile {input.fastas} --out_file {output.mob} > {log} 2>&1"
+if EXTERNAL_PLING:
+    rule pling:
+        #imports results of a pling run made outside the pipeline; the whole directory is copied,
+        #since dcj_trees runs pling submatrix on it and writes into it
+        input:
+            src = EXTERNAL_PLING
+        output:
+            typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
+            hubs = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/hub_plasmids.csv",
+            communities_pickle = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/communities.pkl",
+            dcjs = PLING_DIR + "/all_plasmids_distances.tsv"
+        params:
+            pling_out = PLING_DIR
+        resources: **get_resources("default")
+        threads: get_threads("default")
+        log:
+            LOG_DIR + "/pling.log"
+        shell:
+            "mkdir -p {params.pling_out} && cp -rl {input.src}/. {params.pling_out}/ > {log} 2>&1"
+else:
+    rule pling:
+        input:
+            fastas = get_input_list()
+        output:
+            typing = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/typing.tsv",
+            hubs = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/hub_plasmids.csv",
+            communities_pickle = PLING_DIR + "/dcj_thresh_" + str(config["dcj-indel"]) + "_graph/objects/communities.pkl",
+            dcjs = PLING_DIR + "/all_plasmids_distances.tsv"
+        params:
+            dcj = int(config["dcj-indel"]),
+            containment = float(config["containment"]),
+            pling_other_cli = config["pling_other_cli"],
+            pling_out = PLING_DIR
+        conda:
+            "envs/pling.yaml"
+        resources: **get_resources("pling")
+        threads: get_threads("pling")
+        log:
+            LOG_DIR + "/pling.log"
+        shell:
+            "pling cluster align {input.fastas} {params.pling_out} --cores {threads} --dcj {params.dcj} --containment_distance {params.containment} {params.pling_other_cli} > {log} 2>&1"
+
+if EXTERNAL_MOBTYPER:
+    rule mobtyper:
+        #imports MOB-typer results made outside the pipeline
+        input:
+            src = EXTERNAL_MOBTYPER
+        output:
+            mob = config["output_dir"] + "/mobtyper_results.txt"
+        resources: **get_resources("default")
+        threads: get_threads("default")
+        log:
+            LOG_DIR + "/mobtyper.log"
+        shell:
+            "cp {input.src} {output.mob} > {log} 2>&1"
+else:
+    rule mobtyper:
+        input:
+            fastas = get_multifasta()
+        output:
+            mob = config["output_dir"] + "/mobtyper_results.txt"
+        conda:
+            "envs/mobsuite.yaml"
+        resources: **get_resources("mobtyper")
+        threads: get_threads("mobtyper")
+        log:
+            LOG_DIR + "/mobtyper.log"
+        shell:
+            "mob_typer --multi --infile {input.fastas} --out_file {output.mob} > {log} 2>&1"
 
 checkpoint cluster_lists:
     input:

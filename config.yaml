@@ -15,6 +15,12 @@ containment: 0.5
 
 pling_other_cli: "--batch_size 1000"
 
+#optional: use existing results instead of running pling and/or MOB-typer; leave empty ("") to run them
+#external_pling_dir is the output directory of `pling cluster align`, run with the dcj-indel and containment set above
+external_pling_dir: ""
+#external_mobtyper is a `mob_typer --multi` results file, with sample_id matching the plasmid IDs
+external_mobtyper: ""
+
 big_subcomm_size: 10
 
 ggcaller_cli_args: "--save"
