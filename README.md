@@ -54,6 +54,7 @@ Set the following in `config.yaml`:
 | `dcj-indel`, `containment` | pling's DCJ-Indel and containment distance thresholds. |
 | `pling_other_cli` | Extra command-line arguments passed to `pling cluster align`, e.g. `"--batch_size 1000 --sourmash"`; see `pling cluster align --help`. Leave empty (`""`) to use pling's defaults. Don't set `--cores`, `--dcj` or `--containment_distance` here, since the pipeline already passes them. |
 | `big_subcomm_size` | Subcommunities with more plasmids than this are analysed individually. |
+| `analyses` | Which analyses to run; see [Choosing analyses](#choosing-analyses). |
 | `ggcaller_cli_args`, `panaroo_cli_args` | Extra command-line arguments passed to ggCaller and Panaroo. |
 | `bakta_db` | Path to the Bakta database. |
 | `resources` | Memory (`mem_mb`), time (`runtime`, in minutes) and `threads` per rule; see [Resources](#resources). |
@@ -79,6 +80,31 @@ Building the conda environments and loading the ggCallaroo workflow requires int
 
 ```bash
 snakemake --sdm conda --conda-create-envs-only
+```
+
+## Choosing analyses
+
+The `analyses` section of `config.yaml` switches each analysis on or off:
+
+```yaml
+analyses:
+  dcj_distr: True       #distribution of all DCJ-Indel distances
+  boundary: True        #DCJ-Indel distances on subcommunity boundaries vs within subcommunities
+  dcj_trees: True       #DCJ-Indel matrices and NJ trees per subcommunity
+  cluster_specs: True   #MOB-typer summary per subcommunity
+  ggcallaroo: True      #annotated pangenomes
+  rel_core: True        #relative core genome sizes
+  pangraph: True        #pangenome graphs
+  parsnp: True          #core genome alignments
+  phylofactor: True     #enriched host clades
+```
+
+Every analysis must be listed, as `True` or `False`. The steps an enabled analysis depends on are run automatically, even if their own analysis is switched off: for example, `rel_core` runs ggCaller and Panaroo, and `cluster_specs` and `rel_core` run MOB-typer. Steps that only disabled analyses need are not run. Config entries used only by disabled analyses (e.g. `bakta_db`, or `chr_to_plasmid` and `host_tree` for `phylofactor`) can be left as placeholders.
+
+To change the selection for a single run without editing `config.yaml`, override it on the command line; analyses not mentioned keep their value from `config.yaml`:
+
+```bash
+snakemake --config 'analyses={"parsnp": False, "pangraph": False}' ...
 ```
 
 ## Resources

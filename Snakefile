@@ -64,21 +64,47 @@ def get_list(cluster):
 #lightweight rules which run on the submitting node instead of being sent to slurm
 localrules: all, cluster_lists, sc_in_chr, dcj_distr, cluster_specs
 
+#final outputs of each analysis which can be switched on and off in the analyses section of config.yaml;
+#per-subcommunity outputs are functions, so that the cluster_lists checkpoint only runs when one of them is enabled
+ANALYSIS_TARGETS = {
+    "dcj_distr": lambda: [config["output_dir"] + "/dcj_distr/hist_plot.png", config["output_dir"] + "/dcj_distr/stats.txt"],
+    "boundary": lambda: [config["output_dir"] + "/boundary/" + file for file in ["dcj_median.png", "dcj_mean.png", "internal_vs_boundary_median.png", "internal_vs_boundary_mean.png", "dcj_averages.tsv"]],
+    "dcj_trees": lambda: [PLING_DIR + "/submatrices"],
+    "cluster_specs": lambda: [config["output_dir"] + "/cluster_specs.tsv"],
+    "ggcallaroo": lambda: [GGCALLAROO_DIR.format(cluster=cluster) + "/annotated/" + file for cluster in get_clusters() for file in GGCALLAROO_OUTPUTS],
+    "rel_core": lambda: [config["output_dir"] + "/rel_core/rel_core_plot.png", config["output_dir"] + "/rel_core/rel_core.tsv"],
+    "pangraph": lambda: [config["output_dir"] + f"/pangraph/{cluster}" for cluster in get_clusters()],
+    "parsnp": lambda: [config["output_dir"] + f"/parsnp/{cluster}" for cluster in get_clusters()],
+    "phylofactor": lambda: [config["output_dir"] + f"/post_phylofactor/{cluster}" for cluster in get_clusters()]
+}
+
+ANALYSES = config.get("analyses", {})
+missing_analyses = set(ANALYSIS_TARGETS) - set(ANALYSES)
+unknown_analyses = set(ANALYSES) - set(ANALYSIS_TARGETS)
+if missing_analyses or unknown_analyses:
+    message = "The analyses section of config.yaml must list each of " + ", ".join(ANALYSIS_TARGETS) + " as True or False."
+    if missing_analyses:
+        message += " Missing: " + ", ".join(sorted(missing_analyses)) + "."
+    if unknown_analyses:
+        message += " Unknown: " + ", ".join(sorted(unknown_analyses)) + "."
+    raise ValueError(message)
+
+#values given with --config arrive as strings, e.g. "False", which would otherwise count as enabled
+def to_bool(analysis, value):
+    if isinstance(value, bool):
+        return value
+    if str(value).lower() in ["true", "false"]:
+        return str(value).lower()=="true"
+    raise ValueError(f"analyses: {analysis} must be True or False, not {value!r}")
+
+ANALYSES = {analysis: to_bool(analysis, value) for analysis, value in ANALYSES.items()}
+
+def get_targets(wildcards):
+    return [target for analysis, enabled in ANALYSES.items() if enabled for target in ANALYSIS_TARGETS[analysis]()]
+
 rule all:
     input:
-        ggcallaroo = lambda wildcards: [GGCALLAROO_DIR.format(cluster=cluster) + "/annotated/" + file for cluster in get_clusters() for file in GGCALLAROO_OUTPUTS],
-        pangraph = lambda wildcards: [config["output_dir"] + f"/pangraph/{cluster}" for cluster in get_clusters()],
-        median_hist = config["output_dir"] + "/boundary/dcj_median.png", mean_hist = config["output_dir"] + "/boundary/dcj_mean.png",   # histograms of boundary values
-        median_box = config["output_dir"] + "/boundary/internal_vs_boundary_median.png",  mean_box = config["output_dir"] + "/boundary/internal_vs_boundary_mean.png",    # swarm + box plots, internal vs boundary
-        dcj_avg_tsv = config["output_dir"] + "/boundary/dcj_averages.tsv",
-        cluster_specs_tsv = config["output_dir"] + "/cluster_specs.tsv",
-        plot = config["output_dir"] + "/dcj_distr/hist_plot.png",
-        stats = config["output_dir"] + "/dcj_distr/stats.txt",
-        parsnp_dir = lambda wildcards: [config["output_dir"] + f"/parsnp/{cluster}" for cluster in get_clusters()],
-        dcj_trees = PLING_DIR + "/submatrices",
-        rel_core_plot = config["output_dir"] + "/rel_core/rel_core_plot.png",
-        rel_core_tsv = config["output_dir"] + "/rel_core/rel_core.tsv",
-        post_phylofactor = lambda wildcards: [config["output_dir"] + f"/post_phylofactor/{cluster}" for cluster in get_clusters()]
+        get_targets
 
 if MULTIFASTA:
     rule separate_fastas:

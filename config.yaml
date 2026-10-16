@@ -23,6 +23,19 @@ external_mobtyper: ""
 
 big_subcomm_size: 10
 
+#analyses to run; steps an enabled analysis depends on (e.g. pling, MOB-typer, ggCallaroo) are run automatically
+analyses:
+  dcj_distr: True       #distribution of all DCJ-Indel distances
+  boundary: True        #DCJ-Indel distances on subcommunity boundaries vs within subcommunities
+  dcj_trees: True       #DCJ-Indel matrices and NJ trees per subcommunity
+  cluster_specs: True   #MOB-typer summary per subcommunity
+  #per-subcommunity analyses, for subcommunities larger than big_subcomm_size
+  ggcallaroo: True      #annotated pangenomes
+  rel_core: True        #relative core genome sizes (runs ggcallaroo)
+  pangraph: True        #pangenome graphs
+  parsnp: True          #core genome alignments
+  phylofactor: True     #enriched host clades (needs chr_to_plasmid and host_tree)
+
 ggcaller_cli_args: "--save"
 
 panaroo_cli_args: "--clean-mode moderate"
