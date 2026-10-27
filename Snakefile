@@ -307,7 +307,8 @@ use rule bakta_proteins from ggcallaroo as ggcallaroo_bakta_proteins with:
 
 rule pangraph:
     input:
-        fastas = lambda wildcards: get_list(wildcards.cluster)
+        fastas = lambda wildcards: get_list(wildcards.cluster),
+        fasta_list = lambda wildcards: get_cluster_list(wildcards.cluster)
     output:
         ann_dir = directory(config["output_dir"] + "/pangraph/{cluster}")
     resources: **get_resources("pangraph")
@@ -315,9 +316,12 @@ rule pangraph:
     log:
         LOG_DIR + "/pangraph/{cluster}.log"
     shell:
+        #pangraph opens all input files at once, which can exceed the open file limit, so they are concatenated first
         """
         mkdir -p {output.ann_dir}
-        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 -j {threads} {input.fastas} > {output.ann_dir}/pangraph.json 2> {log}
+        xargs awk 1 < {input.fasta_list} > {output.ann_dir}/input.fasta
+        pangraph build --circular -k minimap2 -s 20 -b 5 --len 200 -j {threads} {output.ann_dir}/input.fasta > {output.ann_dir}/pangraph.json 2> {log}
+        rm {output.ann_dir}/input.fasta
         pangraph export gfa --output {output.ann_dir}/pangraph.gfa --minimum-length 200 -j {threads} {output.ann_dir}/pangraph.json >> {log} 2>&1
         """
 
