@@ -46,10 +46,11 @@ for file in glob.glob(os.path.join(snakemake.params.phylofactor_dir, "clades", "
     clade_plasmids = set()
     clade_genomes = set()
     for plasmid in plasmids:
-        genome = plasmid_to_host[plasmid]
-        if genome in genomes:
-            clade_plasmids.add(plasmid)
-            clade_genomes.add(genome)
+        if plasmid in plasmid_to_host.keys():
+            genome = plasmid_to_host[plasmid]
+            if genome in genomes:
+                clade_plasmids.add(plasmid)
+                clade_genomes.add(genome)
 
     if len(clade_genomes)==0:
         continue

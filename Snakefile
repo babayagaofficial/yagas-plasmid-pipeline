@@ -167,7 +167,7 @@ if EXTERNAL_PLING:
         log:
             LOG_DIR + "/pling.log"
         shell:
-            "mkdir -p {params.pling_out} && cp -rl {input.src}/. {params.pling_out}/ > {log} 2>&1"
+            "mkdir -p {params.pling_out} && cp -r {input.src}/. {params.pling_out}/ > {log} 2>&1"
 else:
     rule pling:
         input:
