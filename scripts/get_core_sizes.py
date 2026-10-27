@@ -31,7 +31,6 @@ for thresh in thresholds:
             for fasta in fastas:
                 name = os.path.basename(fasta).replace('.fna','')
                 length = metadata[metadata["sample_id"]==name]["size"].values[0]
-                ids = genes[genes["No. isolates"]==num_isolates][name].to_list()
                 rel_core_size.append(floor((avg_core_length/length)*100))
             cores["cluster"].append(cluster)
             cores["core_size_%"].append(median(rel_core_size))

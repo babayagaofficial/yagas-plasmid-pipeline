@@ -62,7 +62,7 @@ def get_list(cluster):
     return files
 
 #lightweight rules which run on the submitting node instead of being sent to slurm
-localrules: all, cluster_lists, sc_in_chr, dcj_distr, cluster_specs
+localrules: all, cluster_lists, sc_in_chr, dcj_distr, cluster_specs, ggcallaroo_filter_gffs
 
 #final outputs of each analysis which can be switched on and off in the analyses section of config.yaml;
 #per-subcommunity outputs are functions, so that the cluster_lists checkpoint only runs when one of them is enabled
@@ -271,7 +271,34 @@ use rule ggcaller from ggcallaroo as ggcallaroo_ggcaller with:
     resources: **get_resources("ggcallaroo_ggcaller")
     threads: get_threads("ggcallaroo_ggcaller")
 
+#Panaroo fails on GFFs without any genes, so these are left out of its input
+rule ggcallaroo_filter_gffs:
+    input:
+        gff_dir = GGCALLAROO_DIR + "/ggcaller"
+    output:
+        directory(GGCALLAROO_DIR + "/ggcaller_filtered")
+    log:
+        GGCALLAROO_DIR + "/logs/filter_gffs.log"
+    shell:
+        """
+        mkdir -p {output}/GFF
+        : > {log}
+        for gff in {input.gff_dir}/GFF/*; do
+            if awk '/^##FASTA/ {{exit}} !/^#/ && NF {{found=1; exit}} END {{exit !found}}' "$gff"; then
+                ln -s "$(readlink -f "$gff")" {output}/GFF/
+            else
+                echo "No genes in $gff, leaving it out of Panaroo" >> {log}
+            fi
+        done
+        if [ -z "$(ls -A {output}/GFF)" ]; then
+            echo "None of the GFFs in {input.gff_dir}/GFF contain genes" >> {log}
+            exit 1
+        fi
+        """
+
 use rule panaroo from ggcallaroo as ggcallaroo_panaroo with:
+    input:
+        gff_dir = GGCALLAROO_DIR + "/ggcaller_filtered"
     resources: **get_resources("ggcallaroo_panaroo")
     threads: get_threads("ggcallaroo_panaroo")
 
