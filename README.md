@@ -131,7 +131,7 @@ All results are written to `output_dir`. Subcommunities analysed individually ar
 | `dcj_distr/` | Histogram and summary statistics of all DCJ-Indel distances |
 | `boundary/` | Median and mean DCJ-Indel distances of pling network edges on subcommunity boundaries (excluding edges to hub plasmids) vs edges within subcommunities (`dcj_averages.tsv` and plots) |
 | `cluster_lists/` | FASTA lists of the subcommunities analysed individually |
-| `ggcallaroo/{cluster}/` | ggCaller, Panaroo and Bakta results; annotated pangenome files are in `annotated/`. Plasmids in which ggCaller found no genes are left out of Panaroo; they are listed in `logs/filter_gffs.log` |
+| `ggcallaroo/{cluster}/` | ggCaller, Panaroo and Bakta results; annotated pangenome files are in `annotated/`. GFFs of plasmids in which ggCaller found no genes are deleted from `ggcaller/GFF/` before Panaroo runs; they are listed in `logs/filter_gffs.log` |
 | `rel_core/` | Relative core genome sizes per subcommunity |
 | `pangraph/{cluster}/` | PanGraph pangenome graph (`pangraph.json`, `pangraph.gfa`) |
 | `parsnp/{cluster}/` | Parsnp core genome alignment |

@@ -271,26 +271,24 @@ use rule ggcaller from ggcallaroo as ggcallaroo_ggcaller with:
     resources: **get_resources("ggcallaroo_ggcaller")
     threads: get_threads("ggcallaroo_ggcaller")
 
-#Panaroo fails on GFFs without any genes, so these are left out of its input
+#Panaroo fails on GFFs without any genes, so these are deleted from ggCaller's output before Panaroo runs
 rule ggcallaroo_filter_gffs:
     input:
         gff_dir = GGCALLAROO_DIR + "/ggcaller"
     output:
-        directory(GGCALLAROO_DIR + "/ggcaller_filtered")
+        touch(GGCALLAROO_DIR + "/ggcaller_gffs_filtered.done")
     log:
         GGCALLAROO_DIR + "/logs/filter_gffs.log"
     shell:
         """
-        mkdir -p {output}/GFF
         : > {log}
         for gff in {input.gff_dir}/GFF/*; do
-            if awk '/^##FASTA/ {{exit}} !/^#/ && NF {{found=1; exit}} END {{exit !found}}' "$gff"; then
-                ln "$gff" {output}/GFF/ 2>/dev/null || cp "$gff" {output}/GFF/
-            else
-                echo "No genes in $gff, leaving it out of Panaroo" >> {log}
+            if ! awk '/^##FASTA/ {{exit}} !/^#/ && NF {{found=1; exit}} END {{exit !found}}' "$gff"; then
+                echo "No genes in $gff, deleting it" >> {log}
+                rm "$gff"
             fi
         done
-        if [ -z "$(ls -A {output}/GFF)" ]; then
+        if [ -z "$(ls -A {input.gff_dir}/GFF)" ]; then
             echo "None of the GFFs in {input.gff_dir}/GFF contain genes" >> {log}
             exit 1
         fi
@@ -298,7 +296,8 @@ rule ggcallaroo_filter_gffs:
 
 use rule panaroo from ggcallaroo as ggcallaroo_panaroo with:
     input:
-        gff_dir = GGCALLAROO_DIR + "/ggcaller_filtered"
+        gff_dir = GGCALLAROO_DIR + "/ggcaller",
+        filtered = GGCALLAROO_DIR + "/ggcaller_gffs_filtered.done"
     resources: **get_resources("ggcallaroo_panaroo")
     threads: get_threads("ggcallaroo_panaroo")
 
