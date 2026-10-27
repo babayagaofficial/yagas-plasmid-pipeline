@@ -285,7 +285,7 @@ rule ggcallaroo_filter_gffs:
         : > {log}
         for gff in {input.gff_dir}/GFF/*; do
             if awk '/^##FASTA/ {{exit}} !/^#/ && NF {{found=1; exit}} END {{exit !found}}' "$gff"; then
-                ln -s "$(readlink -f "$gff")" {output}/GFF/
+                ln "$gff" {output}/GFF/ 2>/dev/null || cp "$gff" {output}/GFF/
             else
                 echo "No genes in $gff, leaving it out of Panaroo" >> {log}
             fi
