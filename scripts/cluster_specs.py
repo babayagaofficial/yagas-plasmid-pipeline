@@ -5,7 +5,7 @@ import pandas as pd
 from statistics import mean
 
 typing = pd.read_csv(snakemake.input.typing, sep="\t")
-mob = pd.read_csv(snakemake.input.mob, sep="\t")
+mob = pd.read_csv(snakemake.input.mob, sep="\t", keep_default_na=False)
 
 mob_per_subcomm = {"type":[], "#plasmids":[], "avg_length":[], "rep_types":[], "relaxase_types":[], "mpf_type":[], "predicted_mobility":[]}
 
